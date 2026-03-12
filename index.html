@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Głodne Zwierzątka - Raporty Aktywne</title>
+    <style>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Arial', sans-serif; 
+            text-align: center; 
+            background-color: #f0fdf4; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            overflow: hidden; 
+            touch-action: none;
+            padding: 40px;
+        }
+        
+        .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f0fdf4; z-index: 10; padding: 40px; }
+        .hidden { display: none !important; }
+
+        /* Przyciski zielone i mniejsze o 25% */
+        #start-btn, #restart-btn { 
+            font-size: 38px; 
+            padding: 22px 45px; 
+            border-radius: 25px; 
+            border: none; 
+            background: #22c55e; 
+            color: white; 
+            cursor: pointer; 
+            box-shadow: 0 8px #15803d; 
+            transition: 0.2s; 
+        }
+        
+        .invisible-btn { visibility: hidden; opacity: 0; }
+        .visible-btn { visibility: visible; opacity: 1; transition: opacity 0.5s; }
+
+        #thumb { font-size: 150px; margin-bottom: 20px; position: relative; z-index: 20; }
+        #animal { font-size: 120px; margin: 20px 0; padding: 20px; border-radius: 50%; border: 6px dashed transparent; transition: 0.3s; z-index: 1; }
+        .drop-target { border-color: #22c55e !important; background: rgba(34, 197, 94, 0.1); transform: scale(1.1); }
+        
+        #bubble { background: white; border: 3px solid #333; border-radius: 20px; padding: 15px; margin-bottom: 5px; font-size: 26px; max-width: 90%; }
+        
+        .options { display: flex; gap: 25px; margin-top: 30px; min-height: 130px; align-items: center; justify-content: center; width: 100%; }
+        
+        .syllable { 
+            font-size: 40px; padding: 20px 35px; border-radius: 20px; background: #4ade80; color: white; 
+            cursor: grab; user-select: none; touch-action: none; box-shadow: 0 5px #16a34a; 
+            position: relative; z-index: 5;
+        }
+
+        #counter { position: absolute; top: 20px; right: 30px; font-size: 22px; font-weight: bold; color: #16a34a; }
+        .confetti { position: absolute; width: 15px; height: 15px; z-index: 15; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="screen">
+        <h1 style="font-size: 36px; margin-bottom: 40px;">Głodne Zwierzątka</h1>
+        <button id="start-btn">START</button>
+    </div>
+
+    <div id="game-screen" class="screen hidden">
+        <div id="counter">Brzuszki: 0 / 15</div>
+        <div id="bubble">Nakarm mnie: <b id="target-text">...</b></div>
+        <div id="animal">🐼</div>
+        <div class="options" id="buttons-container"></div>
+    </div>
+
+    <div id="end-screen" class="screen hidden">
+        <div id="thumb">👍</div>
+        <h1 id="end-text">Dobra robota!</h1>
+        <button id="restart-btn" class="invisible-btn">TAK</button>
+    </div>
+
+    <script>
+        const animals = ['🐼', '🦁', '🐵', '🐸', '🐶', '🐱', '🐮', '🐷'];
+        const consonants = ['M', 'P', 'B', 'L', 'T', 'D'];
+        const vowels = ['A', 'E', 'O', 'U']; 
+        const excludedSyllables = ['LO', 'PO', 'PU']; 
+        
+        let currentTarget = "";
+        let score = 0;
+        const maxScore = 15;
+        let correctTaps = 0;
+        let incorrectTaps = 0;
+
+        function speak(text, callback) {
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'pl-PL';
+            msg.rate = 0.85;
+            if (callback) msg.onend = callback;
+            window.speechSynthesis.speak(msg);
+        }
+
+        document.getElementById('start-btn').onclick = startGame;
+        document.getElementById('restart-btn').onclick = () => {
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+        };
+
+        function startGame() {
+            score = 0; correctTaps = 0; incorrectTaps = 0;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('restart-btn').className = 'invisible-btn'; 
+            document.getElementById('game-screen').classList.remove('hidden');
+            speak("Zwierzątka są głodne, nakarm je sylabami", () => { nextRound(); });
+        }
+
+        function generateSyllable() {
+            let s;
+            do {
+                let c = consonants[Math.floor(Math.random() * consonants.length)];
+                let v = vowels[Math.floor(Math.random() * vowels.length)];
+                s = c + v;
+            } while (excludedSyllables.includes(s));
+            return s;
+        }
+
+        function nextRound() {
+            if (score >= maxScore) { endGame(); return; }
+            document.getElementById('counter').innerText = `Brzuszki: ${score} / ${maxScore}`;
+            document.getElementById('animal').innerText = animals[Math.floor(Math.random() * animals.length)];
+            currentTarget = generateSyllable();
+            document.getElementById('target-text').innerText = currentTarget;
+            speak("Poproszę o sylabę " + currentTarget);
+
+            const container = document.getElementById('buttons-container');
+            container.innerHTML = "";
+            let options = [currentTarget];
+            while(options.length < 3) {
+                let rs = generateSyllable();
+                if(!options.includes(rs)) options.push(rs);
+            }
+            options.sort(() => Math.random() - 0.5);
+
+            options.forEach(syl => {
+                const el = document.createElement('div');
+                el.className = 'syllable';
+                el.innerText = syl;
+                makeDraggable(el);
+                container.appendChild(el);
+            });
+        }
+
+        function endGame() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('end-screen').classList.remove('hidden');
+            createConfetti();
+            sendReport();
+            speak("Zwierzątka nakarmione, dobra robota", () => {
+                setTimeout(() => { 
+                    speak("Może nakarmimy więcej zwierzątek?", () => {
+                        document.getElementById('restart-btn').className = 'visible-btn';
+                    }); 
+                }, 500);
+            });
+        }
+
+        function sendReport() {
+            fetch("https://formspree.io/f/xeergnwb", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email_odbiorcy: "jareksek@gmail.com",
+                    wiadomosc: "Wynik sesji nauki czytania",
+                    poprawne_trafienia: correctTaps,
+                    bledne_proby: incorrectTaps,
+                    data: new Date().toLocaleString()
+                })
+            }).catch(err => console.log("Błąd wysyłki raportu"));
+        }
+
+        function createConfetti() {
+            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#4caf50', '#ffeb3b', '#ff9800'];
+            for (let i = 0; i < 80; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = -20 + 'px';
+                document.getElementById('end-screen').appendChild(confetti);
+                confetti.animate([
+                    { transform: `translate3d(0, 0, 0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translate3d(${(Math.random() - 0.5) * 250}px, ${window.innerHeight}px, 0) rotate(${Math.random() * 1000}deg)`, opacity: 0 }
+                ], { duration: 2500 + Math.random() * 2000, easing: 'cubic-bezier(0, .9, .57, 1)' }).onfinish = () => confetti.remove();
+            }
+        }
+
+        function makeDraggable(el) {
+            let startTouchX, startTouchY;
+            const margin = 15;
+
+            el.ontouchstart = (e) => {
+                const touch = e.touches[0];
+                startTouchX = touch.clientX;
+                startTouchY = touch.clientY;
+                el.style.zIndex = "100";
+            };
+
+            el.ontouchmove = (e) => {
+                const touch = e.touches[0];
+                let deltaX = touch.clientX - startTouchX;
+                let deltaY = touch.clientY - startTouchY;
+                const rect = el.getBoundingClientRect();
+                if (rect.left + deltaX < margin) deltaX = - (el.offsetLeft - margin);
+                if (rect.right + deltaX > window.innerWidth - margin) deltaX = window.innerWidth - margin - rect.right;
+                if (rect.top + deltaY < margin) deltaY = - (el.offsetTop - margin);
+                if (rect.bottom + deltaY > window.innerHeight - margin) deltaY = window.innerHeight - margin - rect.bottom;
+                el.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                
+                const animal = document.getElementById('animal');
+                const aRect = animal.getBoundingClientRect();
+                if (touch.clientX > aRect.left && touch.clientX < aRect.right && touch.clientY > aRect.top && touch.clientY < aRect.bottom) animal.classList.add('drop-target');
+                else animal.classList.remove('drop-target');
+            };
+
+            el.ontouchend = (e) => {
+                const animal = document.getElementById('animal');
+                const aRect = animal.getBoundingClientRect();
+                const touch = e.changedTouches[0];
+
+                if (touch.clientX > aRect.left && touch.clientX < aRect.right && touch.clientY > aRect.top && touch.clientY < aRect.bottom) {
+                    if (el.innerText === currentTarget) {
+                        score++; correctTaps++;
+                        animal.classList.remove('drop-target');
+                        speak("Mniam, dziękuję");
+                        nextRound();
+                    } else {
+                        incorrectTaps++;
+                        speak("Nie chcę tej sylaby, daj mi " + currentTarget);
+                        el.style.transform = 'translate(0, 0)';
+                        el.style.zIndex = "5";
+                    }
+                } else {
+                    el.style.transform = 'translate(0, 0)';
+                    el.style.zIndex = "5";
+                }
+                animal.classList.remove('drop-target');
+            };
+        }
+    </script>
+</body>
+</html>
